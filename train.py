@@ -18,6 +18,7 @@ from models.dkvmn import DKVMN
 from models.sakt import SAKT
 from models.gkt import PAM, MHA
 from models.utils import collate_fn
+from trainers.kt_trainer import train_model
 
 
 def main(model_name, dataset_name):
@@ -124,10 +125,9 @@ def main(model_name, dataset_name):
     elif optimizer == "adam":
         opt = Adam(model.parameters(), learning_rate)
 
-    aucs, loss_means = \
-        model.train_model(
-            train_loader, test_loader, num_epochs, opt, ckpt_path
-        )
+    aucs, loss_means = train_model(
+        model_name, model, train_loader, test_loader, num_epochs, opt, ckpt_path
+    )
 
     with open(os.path.join(ckpt_path, "aucs.pkl"), "wb") as f:
         pickle.dump(aucs, f)

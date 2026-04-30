@@ -1,11 +1,6 @@
-import os
-
-import numpy as np
 import torch
 
 from torch.nn import Module, Embedding, LSTM, Linear, Dropout
-from torch.nn.functional import one_hot, binary_cross_entropy
-from sklearn import metrics
 
 
 class DKTPlus(Module):
@@ -53,93 +48,3 @@ class DKTPlus(Module):
         y = torch.sigmoid(y)
 
         return y
-
-    def train_model(
-        self, train_loader, test_loader, num_epochs, opt, ckpt_path
-    ):
-        '''
-            Args:
-                train_loader: the PyTorch DataLoader instance for training
-                test_loader: the PyTorch DataLoader instance for test
-                num_epochs: the number of epochs
-                opt: the optimization to train this model
-                ckpt_path: the path to save this model's parameters
-        '''
-        aucs = []
-        loss_means = []
-
-        max_auc = 0
-
-        for i in range(1, num_epochs + 1):
-            loss_mean = []
-
-            for data in train_loader:
-                q, r, qshft, rshft, m = data
-
-                self.train()
-
-                y = self(q.long(), r.long())
-                y_curr = (y * one_hot(q.long(), self.num_q)).sum(-1)
-                y_next = (y * one_hot(qshft.long(), self.num_q)).sum(-1)
-
-                y_curr = torch.masked_select(y_curr, m)
-                y_next = torch.masked_select(y_next, m)
-                r = torch.masked_select(r, m)
-                rshft = torch.masked_select(rshft, m)
-
-                loss_w1 = torch.masked_select(
-                    torch.norm(y[:, 1:] - y[:, :-1], p=1, dim=-1),
-                    m[:, 1:]
-                )
-                loss_w2 = torch.masked_select(
-                    (torch.norm(y[:, 1:] - y[:, :-1], p=2, dim=-1) ** 2),
-                    m[:, 1:]
-                )
-
-                opt.zero_grad()
-                loss = \
-                    binary_cross_entropy(y_next, rshft) + \
-                    self.lambda_r * binary_cross_entropy(y_curr, r) + \
-                    self.lambda_w1 * loss_w1.mean() / self.num_q + \
-                    self.lambda_w2 * loss_w2.mean() / self.num_q
-                loss.backward()
-                opt.step()
-
-                loss_mean.append(loss.detach().cpu().numpy())
-
-            with torch.no_grad():
-                for data in test_loader:
-                    q, r, qshft, rshft, m = data
-
-                    self.eval()
-
-                    y = self(q.long(), r.long())
-                    y_next = (y * one_hot(qshft.long(), self.num_q)).sum(-1)
-
-                    y_next = torch.masked_select(y_next, m).detach().cpu()
-                    rshft = torch.masked_select(rshft, m).detach().cpu()
-
-                    auc = metrics.roc_auc_score(
-                        y_true=rshft.numpy(), y_score=y_next.numpy()
-                    )
-
-                    loss_mean = np.mean(loss_mean)
-
-                    print(
-                        "Epoch: {},   AUC: {},   Loss Mean: {}"
-                        .format(i, auc, loss_mean)
-                    )
-
-                    if auc > max_auc:
-                        torch.save(
-                            self.state_dict(),
-                            os.path.join(
-                                ckpt_path, "model.ckpt"
-                            )
-                        )
-                        max_auc = auc
-
-                    aucs.append(auc)
-                    loss_means.append(loss_mean)
-
-        return aucs, loss_means

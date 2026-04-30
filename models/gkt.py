@@ -1,13 +1,9 @@
-import os
-
-import numpy as np
 import torch
 
 from torch.nn import Module, Embedding, Parameter, Sequential, Linear, ReLU, \
     Dropout, MultiheadAttention, GRU
 from torch.nn.init import kaiming_normal_
-from torch.nn.functional import one_hot, binary_cross_entropy
-from sklearn import metrics
+from torch.nn.functional import one_hot
 
 
 def mlp(in_size, out_size):
@@ -126,80 +122,6 @@ class GKT(Module):
 
     def predict(self, ht):
         return torch.sigmoid(self.out_layer(ht) + self.bias).squeeze()
-
-    def train_model(
-        self, train_loader, test_loader, num_epochs, opt, ckpt_path
-    ):
-        '''
-            Args:
-                train_loader: the PyTorch DataLoader instance for training
-                test_loader: the PyTorch DataLoader instance for test
-                num_epochs: the number of epochs
-                opt: the optimization to train this model
-                ckpt_path: the path to save this model's parameters
-        '''
-        aucs = []
-        loss_means = []
-
-        max_auc = 0
-
-        for i in range(1, num_epochs + 1):
-            loss_mean = []
-
-            for data in train_loader:
-                q, r, qshft, rshft, m = data
-
-                self.train()
-
-                y, _ = self(q.long(), r.long())
-                y = (y * one_hot(qshft.long(), self.num_q)).sum(-1)
-
-                y = torch.masked_select(y, m)
-                t = torch.masked_select(rshft, m)
-
-                opt.zero_grad()
-                loss = binary_cross_entropy(y, t)
-                loss.backward()
-                opt.step()
-
-                loss_mean.append(loss.detach().cpu().numpy())
-
-            with torch.no_grad():
-                for data in test_loader:
-                    q, r, qshft, rshft, m = data
-
-                    self.eval()
-
-                    y, _ = self(q.long(), r.long())
-                    y = (y * one_hot(qshft.long(), self.num_q)).sum(-1)
-
-                    y = torch.masked_select(y, m).detach().cpu()
-                    t = torch.masked_select(rshft, m).detach().cpu()
-
-                    auc = metrics.roc_auc_score(
-                        y_true=t.numpy(), y_score=y.numpy()
-                    )
-
-                    loss_mean = np.mean(loss_mean)
-
-                    print(
-                        "Epoch: {},   AUC: {},   Loss Mean: {}"
-                        .format(i, auc, loss_mean)
-                    )
-
-                    if auc > max_auc:
-                        torch.save(
-                            self.state_dict(),
-                            os.path.join(
-                                ckpt_path, "model.ckpt"
-                            )
-                        )
-                        max_auc = auc
-
-                    aucs.append(auc)
-                    loss_means.append(loss_mean)
-
-        return aucs, loss_means
 
 
 class PAM(GKT):

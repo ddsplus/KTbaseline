@@ -5,7 +5,7 @@ import pickle
 
 import torch
 
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset
 from torch.optim import SGD, Adam
 
 from data_loaders.assist2009 import ASSIST2009
@@ -83,10 +83,12 @@ def main(model_name, dataset_name):
     train_size = int(len(dataset) * train_ratio)
     test_size = len(dataset) - train_size
 
-    generator = torch.Generator(device='cpu')
-    train_dataset, test_dataset = random_split(
-        dataset, [train_size, test_size], generator=generator
-    )
+    # Build split indices explicitly on CPU so dataset splitting does not
+    # depend on the global default tensor type/device.
+    generator = torch.Generator(device="cpu")
+    indices = torch.randperm(len(dataset), generator=generator, device="cpu").tolist()
+    train_dataset = Subset(dataset, indices[:train_size])
+    test_dataset = Subset(dataset, indices[train_size:])
 
     if os.path.exists(os.path.join(dataset.dataset_dir, "train_indices.pkl")):
         with open(

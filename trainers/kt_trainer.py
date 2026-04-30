@@ -21,6 +21,10 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         y = model(q.long(), r.long())
         y = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
         return y
+    if model_name == "ukt":
+        y, _ = model(q.long(), r.long(), train=False)
+        y = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
+        return y
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
         seq_len = min(y.shape[1], qshft.shape[1])
@@ -67,6 +71,15 @@ def _train_loss(model_name, model, pred, q, r, qshft, rshft, m):
             + model.lambda_w1 * loss_w1.mean() / model.num_q
             + model.lambda_w2 * loss_w2.mean() / model.num_q
         )
+    if model_name == "ukt":
+        y, aux_losses = model(q.long(), r.long(), train=True)
+        y_next = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
+        y_next = torch.masked_select(y_next, m)
+        target = torch.masked_select(rshft, m)
+        loss = binary_cross_entropy(y_next, target)
+        for _, aux in aux_losses.items():
+            loss = loss + aux
+        return loss
 
     pred_masked = torch.masked_select(pred, m)
     if model_name in ["dkvmn", "saint"]:

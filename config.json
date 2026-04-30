@@ -39,6 +39,17 @@
         "dim_s": 100,
         "hidden_size": 100
     },
+    "ukt": {
+        "emb_size": 100,
+        "hidden_size": 100,
+        "num_attn_heads": 5,
+        "dropout": 0.2,
+        "num_blocks": 2,
+        "d_ff": 256,
+        "use_cl": true,
+        "cl_weight": 0.02,
+        "uncertainty_weight": 0.0001
+    },
     "gkt": {
         "hidden_size": 30,
         "num_attn_heads": 2,

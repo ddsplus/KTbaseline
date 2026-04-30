@@ -20,6 +20,7 @@ from models.sakt import SAKT
 from models.gkt import PAM, MHA
 from models.kqn import KQN
 from models.saint import SAINT
+from models.ukt import UKT
 from models.utils import collate_fn
 from trainers.kt_trainer import train_model
 
@@ -81,6 +82,8 @@ def main(model_name, dataset_name):
         model = KQN(dataset.num_q, **model_config).to(device)
     elif model_name == "saint":
         model = SAINT(dataset.num_q, **model_config).to(device)
+    elif model_name == "ukt":
+        model = UKT(dataset.num_q, **model_config).to(device)
     elif model_name == "gkt":
         if model_config["method"] == "PAM":
             model = PAM(dataset.num_q, **model_config).to(device)
@@ -151,7 +154,7 @@ if __name__ == "__main__":
         type=str,
         default="dkt",
         help="The name of the model to train. \
-            The possible models are in [dkt, dkt+, dkvmn, sakt, saint, kqn, gkt]. \
+            The possible models are in [dkt, dkt+, dkvmn, sakt, saint, kqn, ukt, gkt]. \
             The default model is dkt."
     )
     parser.add_argument(

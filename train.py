@@ -13,7 +13,9 @@ from data_loaders.assist2015 import ASSIST2015
 from data_loaders.algebra2005 import Algebra2005
 from data_loaders.statics2011 import Statics2011
 from data_loaders.assist2017 import ASSIST2017
+from data_loaders.xes3g5m import XES3G5M
 from models.dkt import DKT
+from models.dkt_forget import DKTForget
 from models.dkt_plus import DKTPlus
 from models.dkvmn import DKVMN
 from models.sakt import SAKT
@@ -59,6 +61,8 @@ def main(model_name, dataset_name):
         dataset = Statics2011(seq_len)
     elif dataset_name == "ASSIST2017":
         dataset = ASSIST2017(seq_len)
+    elif dataset_name == "XES3G5M":
+        dataset = XES3G5M(seq_len)
 
     if torch.cuda.is_available():
         device = "cuda"
@@ -72,6 +76,8 @@ def main(model_name, dataset_name):
 
     if model_name == "dkt":
         model = DKT(dataset.num_q, **model_config).to(device)
+    elif model_name == "dkt-f":
+        model = DKTForget(dataset.num_q, **model_config).to(device)
     elif model_name == "dkt+":
         model = DKTPlus(dataset.num_q, **model_config).to(device)
     elif model_name == "dkvmn":
@@ -154,7 +160,7 @@ if __name__ == "__main__":
         type=str,
         default="dkt",
         help="The name of the model to train. \
-            The possible models are in [dkt, dkt+, dkvmn, sakt, saint, kqn, ukt, gkt]. \
+            The possible models are in [dkt, dkt-f, dkt+, dkvmn, sakt, saint, kqn, ukt, gkt]. \
             The default model is dkt."
     )
     parser.add_argument(
@@ -163,7 +169,7 @@ if __name__ == "__main__":
         default="ASSIST2009",
         help="The name of the dataset to use in training. \
             The possible datasets are in \
-            [ASSIST2009, ASSIST2015, Algebra2005, Statics2011]. \
+            [ASSIST2009, ASSIST2015, Algebra2005, Statics2011, ASSIST2017, XES3G5M]. \
             The default dataset is ASSIST2009."
     )
     args = parser.parse_args()

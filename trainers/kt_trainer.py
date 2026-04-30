@@ -17,7 +17,7 @@ def calc_binary_auc_acc(y_true, y_score, threshold=0.5):
 
 
 def _forward_for_batch(model_name, model, q, r, qshft):
-    if model_name in ["dkt", "dkt+"]:
+    if model_name in ["dkt", "dkt+", "dkt-f"]:
         y = model(q.long(), r.long())
         y = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
         return y

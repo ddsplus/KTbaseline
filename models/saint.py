@@ -45,7 +45,7 @@ class SAINT(Module):
 
         P = self.P.unsqueeze(1)
 
-        mask = self.transformer.generate_square_subsequent_mask(self.n)
+        mask = self.transformer.generate_square_subsequent_mask(self.n).to(q.device)
         R = self.transformer(
             E + P, R + P, mask, mask, mask
         )

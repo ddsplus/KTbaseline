@@ -23,7 +23,7 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         return y
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
-        y = (y * one_hot(qshft.long())).sum(-1)
+        y = (y * one_hot(qshft.long(), num_classes=y.shape[-1])).sum(-1)
         return y
     if model_name == "dkvmn":
         p, _ = model(q.long(), r.long())
@@ -34,7 +34,7 @@ def _forward_for_batch(model_name, model, q, r, qshft):
     if model_name == "kqn":
         return model(q.long(), r.long(), qshft.long())
     if model_name == "saint":
-        return model(q, r)
+        return model(q.long(), r.long())
     raise ValueError("Unsupported model_name: {}".format(model_name))
 
 

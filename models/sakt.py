@@ -71,7 +71,7 @@ class SAKT(Module):
 
         causal_mask = torch.triu(
             torch.ones([E.shape[0], M.shape[0]]), diagonal=1
-        ).bool()
+        ).bool().to(q.device)
 
         M = M + P
 

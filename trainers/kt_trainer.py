@@ -5,20 +5,7 @@ import torch
 
 from torch.nn.functional import one_hot, binary_cross_entropy
 
-import numpy as np
-
-from sklearn import metrics
-
-
-def calc_binary_auc_acc(y_true, y_score, threshold=0.5):
-    auc = metrics.roc_auc_score(y_true=y_true, y_score=y_score)
-    acc = metrics.accuracy_score(
-        y_true=y_true,
-        y_pred=np.where(y_score >= threshold, 1, 0)
-    )
-
-    return auc, acc
-
+from models.metrics import calc_binary_auc_acc
 
 
 def _forward_for_batch(model_name, model, q, r, qshft):
@@ -28,7 +15,7 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         return y
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
-        y = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
+        y = (y * one_hot(qshft.long())).sum(-1)
         return y
     if model_name == "dkvmn":
         p, _ = model(q.long(), r.long())
@@ -88,6 +75,11 @@ def _eval_arrays(model_name, pred, r, rshft, m):
     return target, pred
 
 
+def _move_batch_to_model_device(model, batch):
+    device = next(model.parameters()).device
+    return tuple(x.to(device) for x in batch)
+
+
 def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, ckpt_path):
     aucs = []
     loss_means = []
@@ -97,7 +89,7 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
         epoch_losses = []
 
         for data in train_loader:
-            q, r, qshft, rshft, m = data
+            q, r, qshft, rshft, m = _move_batch_to_model_device(model, data)
             model.train()
 
             pred = _forward_for_batch(model_name, model, q, r, qshft)
@@ -110,7 +102,7 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
 
         with torch.no_grad():
             for data in test_loader:
-                q, r, qshft, rshft, m = data
+                q, r, qshft, rshft, m = _move_batch_to_model_device(model, data)
                 model.eval()
 
                 pred = _forward_for_batch(model_name, model, q, r, qshft)

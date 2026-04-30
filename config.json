@@ -34,6 +34,11 @@
         "num_attn_heads": 5,
         "dropout": 0.6
     },
+    "kqn": {
+        "dim_v": 100,
+        "dim_s": 100,
+        "hidden_size": 100
+    },
     "gkt": {
         "hidden_size": 30,
         "num_attn_heads": 2,

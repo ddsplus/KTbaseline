@@ -116,7 +116,7 @@ def main(model_name, dataset_name):
         ) as f:
             pickle.dump(test_dataset.indices, f)
 
-    sampler_generator = torch.Generator(device=device)
+    sampler_generator = torch.Generator(device="cpu")
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True,
         collate_fn=collate_fn, generator=sampler_generator

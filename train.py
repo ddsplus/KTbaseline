@@ -83,8 +83,9 @@ def main(model_name, dataset_name):
     train_size = int(len(dataset) * train_ratio)
     test_size = len(dataset) - train_size
 
+    generator = torch.Generator(device='cpu')
     train_dataset, test_dataset = random_split(
-        dataset, [train_size, test_size]
+        dataset, [train_size, test_size], generator=generator
     )
 
     if os.path.exists(os.path.join(dataset.dataset_dir, "train_indices.pkl")):

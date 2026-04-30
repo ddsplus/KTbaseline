@@ -23,6 +23,9 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         return y
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
+        seq_len = min(y.shape[1], qshft.shape[1])
+        y = y[:, :seq_len, :]
+        qshft = qshft[:, :seq_len]
         y = (y * one_hot(qshft.long(), num_classes=y.shape[-1])).sum(-1)
         return y
     if model_name == "dkvmn":

@@ -12,6 +12,7 @@ from data_loaders.assist2009 import ASSIST2009
 from data_loaders.assist2015 import ASSIST2015
 from data_loaders.algebra2005 import Algebra2005
 from data_loaders.statics2011 import Statics2011
+from data_loaders.assist2017 import ASSIST2017
 from models.dkt import DKT
 from models.dkt_plus import DKTPlus
 from models.dkvmn import DKVMN
@@ -55,6 +56,8 @@ def main(model_name, dataset_name):
         dataset = Algebra2005(seq_len)
     elif dataset_name == "Statics2011":
         dataset = Statics2011(seq_len)
+    elif dataset_name == "ASSIST2017":
+        dataset = ASSIST2017(seq_len)
 
     if torch.cuda.is_available():
         device = "cuda"

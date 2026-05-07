@@ -13,14 +13,25 @@ class Dim:
 class CosinePositionalEmbedding(nn.Module):
     def __init__(self, d_model, max_len=512):
         super().__init__()
-        pe = 0.1 * torch.randn(max_len, d_model)
+        self.d_model = d_model
+        self.weight = nn.Parameter(self._build_pe(max_len), requires_grad=False)
+
+    def _build_pe(self, max_len):
+        pe = 0.1 * torch.randn(max_len, self.d_model)
         position = torch.arange(0, max_len).unsqueeze(1).float()
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-(math.log(10000.0) / d_model)))
+        div_term = torch.exp(torch.arange(0, self.d_model, 2).float() * (-(math.log(10000.0) / self.d_model)))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.weight = nn.Parameter(pe.unsqueeze(0), requires_grad=False)
+        return pe.unsqueeze(0)
+
+    def _ensure_capacity(self, seq_len):
+        if self.weight.size(1) >= seq_len:
+            return
+        new_weight = self._build_pe(seq_len).to(self.weight.device)
+        self.weight = nn.Parameter(new_weight, requires_grad=False)
 
     def forward(self, x):
+        self._ensure_capacity(x.size(Dim.seq))
         return self.weight[:, :x.size(Dim.seq), :]
 
 
@@ -63,7 +74,9 @@ class Architecture(nn.Module):
             TransformerLayer(d_model=d_model, n_heads=n_heads, d_ff=d_ff, dropout=dropout)
             for _ in range(n_blocks)
         ])
-        self.position_emb = CosinePositionalEmbedding(d_model=d_model, max_len=seq_len)
+        # SimpleKT constructs [first_step + shifted_steps], so effective
+        # sequence length is seq_len + 1.
+        self.position_emb = CosinePositionalEmbedding(d_model=d_model, max_len=seq_len + 1)
 
     def forward(self, q_embed_data, qa_embed_data):
         q_embed_data = q_embed_data + self.position_emb(q_embed_data)

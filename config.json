@@ -54,6 +54,17 @@
         "cl_weight": 0.02,
         "uncertainty_weight": 0.0001
     },
+    "simplekt": {
+        "d_model": 100,
+        "n_blocks": 2,
+        "dropout": 0.2,
+        "d_ff": 256,
+        "num_attn_heads": 5,
+        "seq_len": 100,
+        "final_fc_dim": 512,
+        "final_fc_dim2": 256,
+        "separate_qa": false
+    },
     "gkt": {
         "hidden_size": 30,
         "num_attn_heads": 2,

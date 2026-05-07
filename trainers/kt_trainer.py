@@ -42,6 +42,8 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         return model(q.long(), r.long(), qshft.long())
     if model_name == "saint":
         return model(q.long(), r.long())
+    if model_name == "simplekt":
+        return model(q.long(), r.long(), qshft.long())
     raise ValueError("Unsupported model_name: {}".format(model_name))
 
 

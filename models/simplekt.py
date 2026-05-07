@@ -148,16 +148,15 @@ class SimpleKT(nn.Module):
         if qshft is None:
             qshft = torch.cat([q[:, 1:], q[:, -1:]], dim=1)
         qshft = qshft.long()
+        # Next-step prediction:
+        # - query comes from next questions (qshft)
+        # - memory comes from past interactions (q, r)
+        # This avoids leaking the current-step response into the same-step target.
+        query_embed = self.q_embed(qshft)
+        _, qa_embed_data = self.base_emb(q, r)
+        d_output = self.model(query_embed, qa_embed_data)
 
-        rshft = torch.cat([r[:, 1:], r[:, -1:]], dim=1)
-
-        q_data = torch.cat((q[:, 0:1], qshft), dim=1)
-        target = torch.cat((r[:, 0:1], rshft), dim=1)
-
-        q_embed_data, qa_embed_data = self.base_emb(q_data, target)
-        d_output = self.model(q_embed_data, qa_embed_data)
-
-        concat_q = torch.cat([d_output, q_embed_data], dim=-1)
+        concat_q = torch.cat([d_output, query_embed], dim=-1)
         preds = torch.sigmoid(self.out(concat_q).squeeze(-1))
 
         if train:

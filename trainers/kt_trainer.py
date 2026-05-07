@@ -43,7 +43,14 @@ def _forward_for_batch(model_name, model, q, r, qshft):
     if model_name == "saint":
         return model(q.long(), r.long())
     if model_name == "simplekt":
-        return model(q.long(), r.long(), qshft.long())
+        p = model(q.long(), r.long(), qshft.long())
+        # SimpleKT can produce one extra timestep (initial context step).
+        # Align with shifted targets/mask used by the generic trainer.
+        if p.shape[1] == qshft.shape[1] + 1:
+            p = p[:, 1:]
+        elif p.shape[1] != qshft.shape[1]:
+            p = p[:, :qshft.shape[1]]
+        return p
     raise ValueError("Unsupported model_name: {}".format(model_name))
 
 

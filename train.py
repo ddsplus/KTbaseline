@@ -24,6 +24,7 @@ from models.kqn import KQN
 from models.saint import SAINT
 from models.ukt import UKT
 from models.simplekt import SimpleKT
+from models.gkt_fm import GKTFM
 from models.utils import collate_fn
 from trainers.kt_trainer import train_model
 
@@ -98,6 +99,8 @@ def main(model_name, dataset_name):
             model = PAM(dataset.num_q, **model_config).to(device)
         elif model_config["method"] == "MHA":
             model = MHA(dataset.num_q, **model_config).to(device)
+    elif model_name == "gkt-fm":
+        model = GKTFM(dataset.num_q, **model_config).to(device)
     else:
         print("The wrong model name was used...")
         return
@@ -163,7 +166,7 @@ if __name__ == "__main__":
         type=str,
         default="dkt",
         help="The name of the model to train. \
-            The possible models are in [dkt, dkt-f, dkt+, dkvmn, sakt, saint, kqn, ukt, simplekt, gkt]. \
+            The possible models are in [dkt, dkt-f, dkt+, dkvmn, sakt, saint, kqn, ukt, simplekt, gkt, gkt-fm]. \
             The default model is dkt."
     )
     parser.add_argument(

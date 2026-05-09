@@ -32,6 +32,13 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         qshft = qshft[:, :seq_len]
         y = (y * one_hot(qshft.long(), num_classes=y.shape[-1])).sum(-1)
         return y
+    if model_name == "gkt-fm":
+        y, _, _ = model(q.long(), r.long(), train=True)
+        seq_len = min(y.shape[1], qshft.shape[1])
+        y = y[:, :seq_len, :]
+        qshft = qshft[:, :seq_len]
+        y = (y * one_hot(qshft.long(), num_classes=y.shape[-1])).sum(-1)
+        return y
     if model_name == "dkvmn":
         p, _ = model(q.long(), r.long())
         return p
@@ -85,6 +92,19 @@ def _train_loss(model_name, model, pred, q, r, qshft, rshft, m):
         y_next = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
         y_next = torch.masked_select(y_next, m)
         target = torch.masked_select(rshft, m)
+        loss = binary_cross_entropy(y_next, target)
+        for _, aux in aux_losses.items():
+            loss = loss + aux
+        return loss
+    if model_name == "gkt-fm":
+        y, _, aux_losses = model(q.long(), r.long(), train=True)
+        seq_len = min(y.shape[1], qshft.shape[1])
+        y = y[:, :seq_len, :]
+        qshft_aligned = qshft[:, :seq_len]
+        m_aligned = m[:, :seq_len]
+        y_next = (y * one_hot(qshft_aligned.long(), num_classes=y.shape[-1])).sum(-1)
+        y_next = torch.masked_select(y_next, m_aligned)
+        target = torch.masked_select(rshft[:, :seq_len], m_aligned)
         loss = binary_cross_entropy(y_next, target)
         for _, aux in aux_losses.items():
             loss = loss + aux

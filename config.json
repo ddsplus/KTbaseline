@@ -69,5 +69,15 @@
         "hidden_size": 30,
         "num_attn_heads": 2,
         "method": "PAM"
+    },
+    "gkt-fm": {
+        "hidden_size": 30,
+        "num_attn_heads": 2,
+        "method": "PAM",
+        "fm_hidden_size": 128,
+        "fm_time_size": 32,
+        "fm_noise": 0.1,
+        "fm_steps": 4,
+        "fm_lambda": 0.2
     }
 }

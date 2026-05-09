@@ -33,7 +33,8 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         y = (y * one_hot(qshft.long(), num_classes=y.shape[-1])).sum(-1)
         return y
     if model_name == "gkt-fm":
-        y, _, _ = model(q.long(), r.long(), train=True)
+        y, _, aux_losses = model(q.long(), r.long(), train=True)
+        model.last_aux_losses = aux_losses
         seq_len = min(y.shape[1], qshft.shape[1])
         y = y[:, :seq_len, :]
         qshft = qshft[:, :seq_len]
@@ -97,15 +98,13 @@ def _train_loss(model_name, model, pred, q, r, qshft, rshft, m):
             loss = loss + aux
         return loss
     if model_name == "gkt-fm":
-        y, _, aux_losses = model(q.long(), r.long(), train=True)
-        seq_len = min(y.shape[1], qshft.shape[1])
-        y = y[:, :seq_len, :]
-        qshft_aligned = qshft[:, :seq_len]
+        seq_len = min(pred.shape[1], qshft.shape[1])
+        pred = pred[:, :seq_len]
         m_aligned = m[:, :seq_len]
-        y_next = (y * one_hot(qshft_aligned.long(), num_classes=y.shape[-1])).sum(-1)
-        y_next = torch.masked_select(y_next, m_aligned)
+        y_next = torch.masked_select(pred, m_aligned)
         target = torch.masked_select(rshft[:, :seq_len], m_aligned)
         loss = binary_cross_entropy(y_next, target)
+        aux_losses = getattr(model, "last_aux_losses", {})
         for _, aux in aux_losses.items():
             loss = loss + aux
         return loss

@@ -107,6 +107,7 @@ class GKTFM(Module):
 
         self.bias = Parameter(torch.Tensor(1, self.num_q, 1))
         self.out_layer = Linear(self.hidden_size, 1, bias=False)
+        self.last_aux_losses = {}
 
     def aggregate(self, xt_emb, qt_onehot, q_emb, ht):
         xt_emb = xt_emb.unsqueeze(1).repeat(1, self.num_q, 1)
@@ -156,7 +157,7 @@ class GKTFM(Module):
     def predict(self, ht):
         return torch.sigmoid(self.out_layer(ht) + self.bias).squeeze(-1)
 
-    def _denoise_qt(self, ht, qt):
+    def _predict_with_denoised_qt(self, ht, qt):
         # ht: [B, Q, H], qt: [B]
         idx = qt.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, self.hidden_size)
         x1 = torch.gather(ht, dim=1, index=idx).squeeze(1)  # [B, H]
@@ -168,9 +169,14 @@ class GKTFM(Module):
         fm_loss = self.fm.loss(x0, x1)
         xhat = self.fm.integrate(x0, self.fm_steps)
 
-        ht_denoised = ht.clone()
-        ht_denoised.scatter_(1, idx, xhat.unsqueeze(1))
-        return ht_denoised, fm_loss
+        # Avoid cloning the full hidden tensor every step; update only logits at q_t.
+        logits = self.out_layer(ht) + self.bias  # [B, Q, 1]
+        qt_logits = self.out_layer(xhat.unsqueeze(1))  # [B, 1, 1]
+        qt_bias = torch.gather(self.bias.repeat(ht.shape[0], 1, 1), dim=1, index=qt.unsqueeze(-1).unsqueeze(-1))
+        qt_logits = qt_logits + qt_bias
+        logits.scatter_(1, qt.unsqueeze(-1).unsqueeze(-1), qt_logits)
+        y = torch.sigmoid(logits).squeeze(-1)
+        return y, fm_loss
 
     def forward(self, q, r, train=False):
         batch_size = q.shape[0]
@@ -181,7 +187,6 @@ class GKTFM(Module):
         q_onehot = one_hot(q, self.num_q)
 
         ht = self.init_h.unsqueeze(0).repeat(batch_size, 1, 1)
-        h = [ht]
         y = []
         fm_losses = []
 
@@ -193,14 +198,10 @@ class GKTFM(Module):
             ht_ = self.aggregate(xt_emb, qt_onehot, q_emb, ht)
             ht = self.update(ht, ht_, qt, qt_onehot)
 
-            ht_for_pred, fm_loss_t = self._denoise_qt(ht, qt)
-            yt = self.predict(ht_for_pred)
-
-            h.append(ht_for_pred)
+            yt, fm_loss_t = self._predict_with_denoised_qt(ht, qt)
             y.append(yt)
             fm_losses.append(fm_loss_t)
 
-        h = torch.stack(h, dim=1)
         y = torch.stack(y, dim=1)
 
         if len(fm_losses) > 0:
@@ -209,6 +210,7 @@ class GKTFM(Module):
             fm_loss = y.new_tensor(0.0)
 
         aux_losses = {"fm_loss": self.fm_lambda * fm_loss}
+        self.last_aux_losses = aux_losses
         if train:
-            return y, h, aux_losses
-        return y, h
+            return y, None, aux_losses
+        return y, None

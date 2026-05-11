@@ -145,13 +145,30 @@ def flip_response_noise(r, m, noise_ratio, generator=None):
     if noise_ratio <= 0:
         return r
 
-    valid_mask = m.bool()
+    noisy_r = r.clone()
+    valid_positions = torch.nonzero(m.bool(), as_tuple=False)
+    if valid_positions.numel() == 0:
+        return noisy_r
+
+    num_flips = int(round(valid_positions.shape[0] * noise_ratio))
+    if num_flips <= 0:
+        return noisy_r
+
     if generator is None:
-        random_values = torch.rand(r.shape, device=r.device)
+        perm = torch.randperm(valid_positions.shape[0], device=r.device)
     else:
-        random_values = torch.rand(r.shape, device=r.device, generator=generator)
-    flip_mask = (random_values < noise_ratio) & valid_mask
-    return torch.where(flip_mask, 1.0 - r, r)
+        perm = torch.randperm(valid_positions.shape[0], device=r.device, generator=generator)
+
+    flip_positions = valid_positions[perm[:num_flips]]
+    row_idx = flip_positions[:, 0]
+    col_idx = flip_positions[:, 1]
+    selected_values = noisy_r[row_idx, col_idx]
+    noisy_r[row_idx, col_idx] = torch.where(
+        selected_values > 0.5,
+        torch.zeros_like(selected_values),
+        torch.ones_like(selected_values)
+    )
+    return noisy_r
 
 
 def evaluate_with_noise(model_name, model, test_loader, noise_ratio, device):

@@ -1,4 +1,5 @@
 import os
+import copy
 
 import numpy as np
 import torch
@@ -135,7 +136,8 @@ def _move_batch_to_model_device(model, batch):
 def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, ckpt_path):
     aucs = []
     loss_means = []
-    max_auc = 0
+    best_auc = float("-inf")
+    best_state_dict = None
 
     for i in range(1, num_epochs + 1):
         epoch_losses = []
@@ -168,14 +170,14 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
                     .format(i, auc, acc, loss_mean)
                 )
 
-                if auc > max_auc:
-                    torch.save(
-                        model.state_dict(),
-                        os.path.join(ckpt_path, "model.ckpt")
-                    )
-                    max_auc = auc
+                if auc > best_auc:
+                    best_auc = auc
+                    best_state_dict = copy.deepcopy(model.state_dict())
 
                 aucs.append(auc)
                 loss_means.append(loss_mean)
+
+    if best_state_dict is not None:
+        torch.save(best_state_dict, os.path.join(ckpt_path, "best_model.pt"))
 
     return aucs, loss_means

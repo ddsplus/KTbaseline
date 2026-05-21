@@ -62,23 +62,39 @@ class Statics2011(Dataset):
 
     def preprocess(self):
         df = pd.read_csv(self.dataset_path, sep="\t")
+        df.columns = [str(col).strip().replace("\ufeff", "") for col in df.columns]
+
+        normalized_col_map = {
+            col.lower().replace("_", " ").replace("-", " ").strip(): col
+            for col in df.columns
+        }
+
+        def _resolve_by_normalized(candidates):
+            for name in candidates:
+                key = name.lower().replace("_", " ").replace("-", " ").strip()
+                if key in normalized_col_map:
+                    return normalized_col_map[key]
+            return None
 
         def _pick_column(candidates):
             for col in candidates:
                 if col in df.columns:
                     return col
-            return None
+            return _resolve_by_normalized(candidates)
 
-        problem_col = _pick_column(["Problem Name"])
-        step_col = _pick_column(["Step Name"])
-        user_col = _pick_column(["Anon Student Id"])
-        time_col = _pick_column(["Time", "First Transaction Time"])
-        outcome_col = _pick_column(["Outcome", "First Attempt"])
-        attempt_col = _pick_column(["Attempt At Step"])
-        response_type_col = _pick_column(["Student Response Type"])
-        corrects_col = _pick_column(["Corrects"])
-        incorrects_col = _pick_column(["Incorrects"])
-        hints_col = _pick_column(["Hints"])
+        problem_col = _pick_column(["Problem Name", "problem_name", "problem"])
+        step_col = _pick_column(["Step Name", "step_name", "step"])
+        user_col = _pick_column([
+            "Anon Student Id", "Anon Student ID", "Student Id", "student_id",
+            "user_id", "user"
+        ])
+        time_col = _pick_column(["Time", "First Transaction Time", "timestamp", "time"])
+        outcome_col = _pick_column(["Outcome", "First Attempt", "Label", "correct"])
+        attempt_col = _pick_column(["Attempt At Step", "attempt_at_step", "attempt"])
+        response_type_col = _pick_column(["Student Response Type", "response_type"])
+        corrects_col = _pick_column(["Corrects", "corrects"])
+        incorrects_col = _pick_column(["Incorrects", "incorrects"])
+        hints_col = _pick_column(["Hints", "hints"])
 
         required_cols = [user_col, problem_col, step_col]
         if any(col is None for col in required_cols):
@@ -89,7 +105,11 @@ class Statics2011(Dataset):
                 missing.append("Problem Name")
             if step_col is None:
                 missing.append("Step Name")
-            raise ValueError("Missing required columns: {}".format(missing))
+            raise ValueError(
+                "Missing required columns: {}. Available columns: {}".format(
+                    missing, list(df.columns)
+                )
+            )
 
         df = df.dropna(subset=[problem_col, step_col])
         if time_col is not None:

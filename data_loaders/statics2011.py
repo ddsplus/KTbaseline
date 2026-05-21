@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 from models.utils import match_seq_len
 
 
-DATASET_DIR = ".datasets/statics2011/"
+DATASET_DIR = "datasets/statics2011/"
 
 
 class Statics2011(Dataset):
@@ -22,8 +22,8 @@ class Statics2011(Dataset):
         self.dataset_dir = datset_dir
         self.dataset_path = os.path.join(
             self.dataset_dir, os.path.join(
-                "ds507_tx_2021_0704_202856",
-                "ds507_tx_All_Data_1664_2017_0227_034415.txt"
+                
+                "AllData_student_step_2011F.csv"
             )
         )
 

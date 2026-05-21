@@ -91,10 +91,12 @@ def main(model_name, dataset_name):
         model = SAINT(dataset.num_q, **model_config).to(device)
     elif model_name == "ukt":
         from models.ukt import UKT
-        model = UKT(dataset.num_q, n_pid=0, **model_config).to(device)
+        n_pid = dataset.num_pid if hasattr(dataset, "num_pid") else 0
+        model = UKT(dataset.num_q, n_pid=n_pid, **model_config).to(device)
     elif model_name == "robustkt":
         from models.robustkt import Robustkt
-        model = Robustkt(dataset.num_q, n_pid=0, **model_config).to(device)
+        n_pid = dataset.num_pid if hasattr(dataset, "num_pid") else 0
+        model = Robustkt(dataset.num_q, n_pid=n_pid, **model_config).to(device)
     elif model_name == "simplekt":
         model = SimpleKT(dataset.num_q, **model_config).to(device)
     elif model_name == "gkt":

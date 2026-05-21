@@ -187,7 +187,7 @@ def evaluate_with_noise(model_name, model, test_loader, noise_ratio, device):
     with torch.no_grad():
         model.eval()
         for data in test_loader:
-            q, r, qshft, rshft, m = _move_batch_to_model_device(model, data)
+            q, r, qshft, rshft, m, pid, pidshft = _move_batch_to_model_device(model, data)
             noisy_r = flip_response_noise(r, m, noise_ratio, generator=noise_generator)
 
             if model_name in ["dkvmn", "saint"]:
@@ -195,7 +195,7 @@ def evaluate_with_noise(model_name, model, test_loader, noise_ratio, device):
             else:
                 y_true = torch.masked_select(rshft, m).detach().cpu().numpy()
 
-            pred = _forward_for_batch(model_name, model, q, noisy_r, qshft)
+            pred = _forward_for_batch(model_name, model, q, noisy_r, qshft, pid=pid)
             y_score = torch.masked_select(pred, m).detach().cpu().numpy()
 
             y_true_all.append(y_true)

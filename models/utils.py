@@ -80,12 +80,22 @@ def collate_fn(batch, pad_val=-1):
     r_seqs = []
     qshft_seqs = []
     rshft_seqs = []
+    pid_seqs = []
+    pidshft_seqs = []
+    has_pid = len(batch[0]) == 3
 
-    for q_seq, r_seq in batch:
+    for item in batch:
+        if has_pid:
+            q_seq, r_seq, pid_seq = item
+        else:
+            q_seq, r_seq = item
         q_seqs.append(torch.tensor(q_seq[:-1], dtype=torch.float32))
         r_seqs.append(torch.tensor(r_seq[:-1], dtype=torch.float32))
         qshft_seqs.append(torch.tensor(q_seq[1:], dtype=torch.float32))
         rshft_seqs.append(torch.tensor(r_seq[1:], dtype=torch.float32))
+        if has_pid:
+            pid_seqs.append(torch.tensor(pid_seq[:-1], dtype=torch.float32))
+            pidshft_seqs.append(torch.tensor(pid_seq[1:], dtype=torch.float32))
 
     q_seqs = pad_sequence(
         q_seqs, batch_first=True, padding_value=pad_val
@@ -99,11 +109,22 @@ def collate_fn(batch, pad_val=-1):
     rshft_seqs = pad_sequence(
         rshft_seqs, batch_first=True, padding_value=pad_val
     )
+    if has_pid:
+        pid_seqs = pad_sequence(
+            pid_seqs, batch_first=True, padding_value=pad_val
+        )
+        pidshft_seqs = pad_sequence(
+            pidshft_seqs, batch_first=True, padding_value=pad_val
+        )
 
     mask_seqs = (q_seqs != pad_val) * (qshft_seqs != pad_val)
 
     q_seqs, r_seqs, qshft_seqs, rshft_seqs = \
         q_seqs * mask_seqs, r_seqs * mask_seqs, qshft_seqs * mask_seqs, \
         rshft_seqs * mask_seqs
+
+    if has_pid:
+        pid_seqs, pidshft_seqs = pid_seqs * mask_seqs, pidshft_seqs * mask_seqs
+        return q_seqs, r_seqs, qshft_seqs, rshft_seqs, mask_seqs, pid_seqs, pidshft_seqs
 
     return q_seqs, r_seqs, qshft_seqs, rshft_seqs, mask_seqs

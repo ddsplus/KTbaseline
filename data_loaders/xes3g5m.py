@@ -68,11 +68,13 @@ class XES3G5M(Dataset):
             except (ValueError, OSError):
                 has_strict_user_split_cache = False
 
-        if has_cached_sequences and has_strict_user_split_cache:
+        if has_cached_sequences and has_strict_user_split_cache and os.path.exists(os.path.join(self.dataset_dir, "pid_seqs.pkl")):
             with open(os.path.join(self.dataset_dir, "q_seqs.pkl"), "rb") as f:
                 self.q_seqs = pickle.load(f)
             with open(os.path.join(self.dataset_dir, "r_seqs.pkl"), "rb") as f:
                 self.r_seqs = pickle.load(f)
+            with open(os.path.join(self.dataset_dir, "pid_seqs.pkl"), "rb") as f:
+                self.pid_seqs = pickle.load(f)
             with open(os.path.join(self.dataset_dir, "q_list.pkl"), "rb") as f:
                 self.q_list = pickle.load(f)
             with open(os.path.join(self.dataset_dir, "u_list.pkl"), "rb") as f:
@@ -93,6 +95,7 @@ class XES3G5M(Dataset):
 
         self.num_u = self.u_list.shape[0]
         self.num_q = self.q_list.shape[0]
+        self.num_pid = self.num_q
 
         if seq_len and not has_strict_user_split_cache:
             self.q_seqs, self.r_seqs = match_seq_len(
@@ -102,7 +105,7 @@ class XES3G5M(Dataset):
         self.len = len(self.q_seqs)
 
     def __getitem__(self, index):
-        return self.q_seqs[index], self.r_seqs[index]
+        return self.q_seqs[index], self.r_seqs[index], self.pid_seqs[index]
 
     def __len__(self):
         return self.len
@@ -188,6 +191,7 @@ class XES3G5M(Dataset):
 
         q_seqs = []
         r_seqs = []
+        pid_seqs = []
         sequence_users = []
         train_indices = []
         test_indices = []
@@ -216,6 +220,7 @@ class XES3G5M(Dataset):
                     seq_idx = len(q_seqs)
                     q_seqs.append(np.array(q_chunk))
                     r_seqs.append(np.array(r_chunk))
+                    pid_seqs.append(np.array(q_chunk))
                     sequence_users.append("{}::{}".format(split_name, uid))
                     if split_name == "train":
                         train_indices.append(seq_idx)
@@ -232,6 +237,8 @@ class XES3G5M(Dataset):
             pickle.dump(q_seqs, f)
         with open(os.path.join(self.dataset_dir, "r_seqs.pkl"), "wb") as f:
             pickle.dump(r_seqs, f)
+        with open(os.path.join(self.dataset_dir, "pid_seqs.pkl"), "wb") as f:
+            pickle.dump(pid_seqs, f)
         with open(os.path.join(self.dataset_dir, "q_list.pkl"), "wb") as f:
             pickle.dump(q_list, f)
         with open(os.path.join(self.dataset_dir, "u_list.pkl"), "wb") as f:
@@ -258,4 +265,5 @@ class XES3G5M(Dataset):
         with open(self.official_split_meta_path, "w", encoding="utf-8") as f:
             json.dump(split_meta, f)
 
+        self.pid_seqs = pid_seqs
         return q_seqs, r_seqs, q_list, u_list, q2idx, u2idx

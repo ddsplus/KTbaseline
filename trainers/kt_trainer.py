@@ -17,17 +17,19 @@ def calc_binary_auc_acc(y_true, y_score, threshold=0.5):
     return auc, acc
 
 
-def _forward_for_batch(model_name, model, q, r, qshft):
+def _forward_for_batch(model_name, model, q, r, qshft, pid=None):
     if model_name in ["dkt", "dkt+", "dkt-f"]:
         y = model(q.long(), r.long())
         y = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
         return y
     if model_name == "ukt":
+        pid_base = pid.long() if pid is not None else q.long()
+        pid_shft = pid.long() if pid is not None else qshft.long()
         dcur = {
-            "qseqs": q.long(),
+            "qseqs": pid_base,
             "cseqs": q.long(),
             "rseqs": r.long(),
-            "shft_qseqs": qshft.long(),
+            "shft_qseqs": pid_shft,
             "shft_cseqs": qshft.long(),
             "shft_rseqs": r.long(),
             "masks": (q != -1),
@@ -41,7 +43,7 @@ def _forward_for_batch(model_name, model, q, r, qshft):
             y = y[:, :qshft.shape[1]]
         return y
     if model_name == "robustkt":
-        p, _ = model(q.long(), r.long())
+        p, _ = model(q.long(), r.long(), pid_data=pid.long() if pid is not None else None)
         return p
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
@@ -80,7 +82,7 @@ def _forward_for_batch(model_name, model, q, r, qshft):
     raise ValueError("Unsupported model_name: {}".format(model_name))
 
 
-def _train_loss(model_name, model, pred, q, r, qshft, rshft, m):
+def _train_loss(model_name, model, pred, q, r, qshft, rshft, m, pid=None):
     if model_name == "dkt+":
         y = model(q.long(), r.long())
         y_curr = (y * one_hot(q.long(), model.num_q)).sum(-1)
@@ -107,11 +109,13 @@ def _train_loss(model_name, model, pred, q, r, qshft, rshft, m):
             + model.lambda_w2 * loss_w2.mean() / model.num_q
         )
     if model_name == "ukt":
+        pid_base = pid.long() if pid is not None else q.long()
+        pid_shft = pid.long() if pid is not None else qshft.long()
         dcur = {
-            "qseqs": q.long(),
+            "qseqs": pid_base,
             "cseqs": q.long(),
             "rseqs": r.long(),
-            "shft_qseqs": qshft.long(),
+            "shft_qseqs": pid_shft,
             "shft_cseqs": qshft.long(),
             "shft_rseqs": rshft.long(),
             "masks": m.bool(),
@@ -137,7 +141,9 @@ def _train_loss(model_name, model, pred, q, r, qshft, rshft, m):
     if model_name == "robustkt":
         pred_masked = torch.masked_select(pred, m)
         target = torch.masked_select(rshft, m)
-        _, c_reg_loss = model(q.long(), r.long())
+        _, c_reg_loss = model(
+            q.long(), r.long(), pid_data=pid.long() if pid is not None else None
+        )
         return binary_cross_entropy(pred_masked, target) + c_reg_loss
     if model_name == "gkt-fm":
         seq_len = min(pred.shape[1], qshft.shape[1])
@@ -171,7 +177,10 @@ def _eval_arrays(model_name, pred, r, rshft, m):
 
 def _move_batch_to_model_device(model, batch):
     device = next(model.parameters()).device
-    return tuple(x.to(device) for x in batch)
+    moved = tuple(x.to(device) for x in batch)
+    if len(moved) == 5:
+        return (*moved, None, None)
+    return moved
 
 
 def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, ckpt_path):
@@ -184,11 +193,11 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
         epoch_losses = []
 
         for data in train_loader:
-            q, r, qshft, rshft, m = _move_batch_to_model_device(model, data)
+            q, r, qshft, rshft, m, pid, pidshft = _move_batch_to_model_device(model, data)
             model.train()
 
-            pred = _forward_for_batch(model_name, model, q, r, qshft)
-            loss = _train_loss(model_name, model, pred, q, r, qshft, rshft, m)
+            pred = _forward_for_batch(model_name, model, q, r, qshft, pid=pid)
+            loss = _train_loss(model_name, model, pred, q, r, qshft, rshft, m, pid=pid)
 
             opt.zero_grad()
             loss.backward()
@@ -199,10 +208,10 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
             all_y_true = []
             all_y_score = []
             for data in test_loader:
-                q, r, qshft, rshft, m = _move_batch_to_model_device(model, data)
+                q, r, qshft, rshft, m, pid, pidshft = _move_batch_to_model_device(model, data)
                 model.eval()
 
-                pred = _forward_for_batch(model_name, model, q, r, qshft)
+                pred = _forward_for_batch(model_name, model, q, r, qshft, pid=pid)
                 y_true, y_score = _eval_arrays(model_name, pred, r, rshft, m)
                 all_y_true.append(y_true)
                 all_y_score.append(y_score)

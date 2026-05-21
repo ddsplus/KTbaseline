@@ -61,7 +61,7 @@ class Statics2011(Dataset):
         return self.len
 
     def preprocess(self):
-        df = pd.read_csv(self.dataset_path, sep="\t")
+        df = pd.read_csv(self.dataset_path, sep=None, engine="python")
         df.columns = [str(col).strip().replace("\ufeff", "") for col in df.columns]
 
         normalized_col_map = {

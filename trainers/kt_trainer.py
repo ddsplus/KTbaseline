@@ -196,27 +196,33 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
             epoch_losses.append(loss.detach().cpu().numpy())
 
         with torch.no_grad():
+            all_y_true = []
+            all_y_score = []
             for data in test_loader:
                 q, r, qshft, rshft, m = _move_batch_to_model_device(model, data)
                 model.eval()
 
                 pred = _forward_for_batch(model_name, model, q, r, qshft)
                 y_true, y_score = _eval_arrays(model_name, pred, r, rshft, m)
+                all_y_true.append(y_true)
+                all_y_score.append(y_score)
 
-                auc, acc = calc_binary_auc_acc(y_true=y_true, y_score=y_score)
-                loss_mean = np.mean(epoch_losses)
+            y_true_all = np.concatenate(all_y_true)
+            y_score_all = np.concatenate(all_y_score)
+            auc, acc = calc_binary_auc_acc(y_true=y_true_all, y_score=y_score_all)
+            loss_mean = np.mean(epoch_losses)
 
-                print(
-                    "Epoch: {},   Test AUC: {},   Test ACC: {},   Loss Mean: {}"
-                    .format(i, auc, acc, loss_mean)
-                )
+            print(
+                "Epoch: {},   Test AUC: {},   Test ACC: {},   Loss Mean: {}"
+                .format(i, auc, acc, loss_mean)
+            )
 
-                if auc > best_auc:
-                    best_auc = auc
-                    best_state_dict = copy.deepcopy(model.state_dict())
+            if auc > best_auc:
+                best_auc = auc
+                best_state_dict = copy.deepcopy(model.state_dict())
 
-                aucs.append(auc)
-                loss_means.append(loss_mean)
+            aucs.append(auc)
+            loss_means.append(loss_mean)
 
     if best_state_dict is not None:
         torch.save(best_state_dict, os.path.join(ckpt_path, "best_model.pt"))

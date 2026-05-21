@@ -39,6 +39,7 @@ class XES3G5M(Dataset):
         raw_test_file=RAW_TEST_FILE
     ) -> None:
         super().__init__()
+        self.seq_len = seq_len
         self.dataset_dir = dataset_dir
         self.raw_train_path = os.path.join(self.dataset_dir, raw_train_file)
         self.raw_test_path = os.path.join(self.dataset_dir, raw_test_file)
@@ -61,6 +62,8 @@ class XES3G5M(Dataset):
                     split_meta = json.load(f)
                 has_strict_user_split_cache = (
                     split_meta.get("split") == "strict_user_disjoint"
+                    and split_meta.get("is_chunked", False)
+                    and split_meta.get("seq_len") == self.seq_len
                 )
             except (ValueError, OSError):
                 has_strict_user_split_cache = False
@@ -91,7 +94,7 @@ class XES3G5M(Dataset):
         self.num_u = self.u_list.shape[0]
         self.num_q = self.q_list.shape[0]
 
-        if seq_len:
+        if seq_len and not has_strict_user_split_cache:
             self.q_seqs, self.r_seqs = match_seq_len(
                 self.q_seqs, self.r_seqs, seq_len
             )
@@ -204,14 +207,20 @@ class XES3G5M(Dataset):
                 if len(filtered_q) == 0:
                     continue
 
-                seq_idx = len(q_seqs)
-                q_seqs.append(np.array(filtered_q))
-                r_seqs.append(np.array(filtered_r))
-                sequence_users.append("{}::{}".format(split_name, uid))
-                if split_name == "train":
-                    train_indices.append(seq_idx)
-                else:
-                    test_indices.append(seq_idx)
+                user_q = [np.array(filtered_q)]
+                user_r = [np.array(filtered_r)]
+                if self.seq_len:
+                    user_q, user_r = match_seq_len(user_q, user_r, self.seq_len)
+
+                for q_chunk, r_chunk in zip(user_q, user_r):
+                    seq_idx = len(q_seqs)
+                    q_seqs.append(np.array(q_chunk))
+                    r_seqs.append(np.array(r_chunk))
+                    sequence_users.append("{}::{}".format(split_name, uid))
+                    if split_name == "train":
+                        train_indices.append(seq_idx)
+                    else:
+                        test_indices.append(seq_idx)
 
         _append_split_sequences(train_users, "train")
         _append_split_sequences(test_users, "test")
@@ -237,10 +246,14 @@ class XES3G5M(Dataset):
             pickle.dump(test_indices, f)
         split_meta = {
             "split": "strict_user_disjoint",
+            "is_chunked": True,
+            "seq_len": self.seq_len,
             "train_user_count": len(train_users),
             "test_user_count": len(test_users),
             "overlap_user_count": len(overlap_uids),
             "overlap_users_assigned_to": "test",
+            "train_sequence_count": len(train_indices),
+            "test_sequence_count": len(test_indices),
         }
         with open(self.official_split_meta_path, "w", encoding="utf-8") as f:
             json.dump(split_meta, f)

@@ -61,19 +61,70 @@ class Statics2011(Dataset):
         return self.len
 
     def preprocess(self):
-        df = pd.read_csv(self.dataset_path, sep="\t")\
-            .dropna(subset=["Problem Name", "Step Name", "Outcome"])\
-            .sort_values(by=["Time"])
-        df = df[df["Attempt At Step"] == 1]
-        df = df[df["Student Response Type"] == "ATTEMPT"]
+        df = pd.read_csv(self.dataset_path, sep="\t")
+
+        def _pick_column(candidates):
+            for col in candidates:
+                if col in df.columns:
+                    return col
+            return None
+
+        problem_col = _pick_column(["Problem Name"])
+        step_col = _pick_column(["Step Name"])
+        user_col = _pick_column(["Anon Student Id"])
+        time_col = _pick_column(["Time", "First Transaction Time"])
+        outcome_col = _pick_column(["Outcome", "First Attempt"])
+        attempt_col = _pick_column(["Attempt At Step"])
+        response_type_col = _pick_column(["Student Response Type"])
+        corrects_col = _pick_column(["Corrects"])
+        incorrects_col = _pick_column(["Incorrects"])
+        hints_col = _pick_column(["Hints"])
+
+        required_cols = [user_col, problem_col, step_col]
+        if any(col is None for col in required_cols):
+            missing = []
+            if user_col is None:
+                missing.append("Anon Student Id")
+            if problem_col is None:
+                missing.append("Problem Name")
+            if step_col is None:
+                missing.append("Step Name")
+            raise ValueError("Missing required columns: {}".format(missing))
+
+        df = df.dropna(subset=[problem_col, step_col])
+        if time_col is not None:
+            df = df.sort_values(by=[time_col])
+
+        if attempt_col is not None:
+            df = df[df[attempt_col] == 1]
+        if response_type_col is not None:
+            df = df[df[response_type_col] == "ATTEMPT"]
+
+        if outcome_col is None:
+            def derive_outcome(row):
+                corrects = int(row[corrects_col]) if corrects_col and pd.notna(row[corrects_col]) else 0
+                incorrects = int(row[incorrects_col]) if incorrects_col and pd.notna(row[incorrects_col]) else 0
+                hints = int(row[hints_col]) if hints_col and pd.notna(row[hints_col]) else 0
+                if corrects > 0 and incorrects == 0 and hints == 0:
+                    return "CORRECT"
+                return "INCORRECT"
+            df["__outcome__"] = df.apply(derive_outcome, axis=1)
+            outcome_col = "__outcome__"
+        else:
+            if outcome_col == "First Attempt":
+                normalized = df[outcome_col].astype(str).str.strip().str.lower()
+                df["__outcome__"] = np.where(normalized == "correct", "CORRECT", "INCORRECT")
+                outcome_col = "__outcome__"
+            else:
+                df = df.dropna(subset=[outcome_col])
 
         kcs = []
         for _, row in df.iterrows():
-            kcs.append("{}_{}".format(row["Problem Name"], row["Step Name"]))
+            kcs.append("{}_{}".format(row[problem_col], row[step_col]))
 
         df["KC"] = kcs
 
-        u_list = np.unique(df["Anon Student Id"].values)
+        u_list = np.unique(df[user_col].values)
         q_list = np.unique(df["KC"].values)
 
         u2idx = {u: idx for idx, u in enumerate(u_list)}
@@ -82,10 +133,10 @@ class Statics2011(Dataset):
         q_seqs = []
         r_seqs = []
         for u in u_list:
-            u_df = df[df["Anon Student Id"] == u]
+            u_df = df[df[user_col] == u]
 
             q_seqs.append([q2idx[q] for q in u_df["KC"].values])
-            r_seqs.append((u_df["Outcome"].values == "CORRECT").astype(int))
+            r_seqs.append((u_df[outcome_col].astype(str).str.upper().values == "CORRECT").astype(int))
 
         with open(os.path.join(self.dataset_dir, "q_seqs.pkl"), "wb") as f:
             pickle.dump(q_seqs, f)

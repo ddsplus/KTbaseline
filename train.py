@@ -22,10 +22,8 @@ from models.sakt import SAKT
 from models.gkt import PAM, MHA
 from models.kqn import KQN
 from models.saint import SAINT
-from models.ukt import UKT
 from models.simplekt import SimpleKT
 from models.gkt_fm import GKTFM
-from models.robustkt import Robustkt
 from models.utils import collate_fn
 from trainers.kt_trainer import train_model
 
@@ -92,8 +90,10 @@ def main(model_name, dataset_name):
     elif model_name == "saint":
         model = SAINT(dataset.num_q, **model_config).to(device)
     elif model_name == "ukt":
+        from models.ukt import UKT
         model = UKT(dataset.num_q, n_pid=0, **model_config).to(device)
     elif model_name == "robustkt":
+        from models.robustkt import Robustkt
         model = Robustkt(dataset.num_q, n_pid=0, **model_config).to(device)
     elif model_name == "simplekt":
         model = SimpleKT(dataset.num_q, **model_config).to(device)

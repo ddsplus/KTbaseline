@@ -23,9 +23,26 @@ def _forward_for_batch(model_name, model, q, r, qshft):
         y = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
         return y
     if model_name == "ukt":
-        y, _ = model(q.long(), r.long(), train=False)
-        y = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
+        dcur = {
+            "qseqs": q.long(),
+            "cseqs": q.long(),
+            "rseqs": r.long(),
+            "shft_qseqs": qshft.long(),
+            "shft_cseqs": qshft.long(),
+            "shft_rseqs": r.long(),
+            "masks": (q != -1),
+            "r_aug": r.long(),
+            "shft_r_aug": r.long(),
+        }
+        y = model(dcur, train=False)
+        if y.shape[1] == qshft.shape[1] + 1:
+            y = y[:, 1:]
+        elif y.shape[1] != qshft.shape[1]:
+            y = y[:, :qshft.shape[1]]
         return y
+    if model_name == "robustkt":
+        p, _ = model(q.long(), r.long())
+        return p
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
         seq_len = min(y.shape[1], qshft.shape[1])
@@ -90,14 +107,38 @@ def _train_loss(model_name, model, pred, q, r, qshft, rshft, m):
             + model.lambda_w2 * loss_w2.mean() / model.num_q
         )
     if model_name == "ukt":
-        y, aux_losses = model(q.long(), r.long(), train=True)
-        y_next = (y * one_hot(qshft.long(), model.num_q)).sum(-1)
+        dcur = {
+            "qseqs": q.long(),
+            "cseqs": q.long(),
+            "rseqs": r.long(),
+            "shft_qseqs": qshft.long(),
+            "shft_cseqs": qshft.long(),
+            "shft_rseqs": rshft.long(),
+            "masks": m.bool(),
+            "r_aug": r.long(),
+            "shft_r_aug": rshft.long(),
+        }
+        outputs = model(dcur, train=True)
+        y = outputs[0]
+        aux_losses = {}
+        if len(outputs) > 1 and torch.is_tensor(outputs[1]):
+            aux_losses["cl_loss"] = outputs[1] * getattr(model, "cl_weight", 1.0)
+        if y.shape[1] == qshft.shape[1] + 1:
+            y = y[:, 1:]
+        elif y.shape[1] != qshft.shape[1]:
+            y = y[:, :qshft.shape[1]]
+        y_next = y
         y_next = torch.masked_select(y_next, m)
         target = torch.masked_select(rshft, m)
         loss = binary_cross_entropy(y_next, target)
         for _, aux in aux_losses.items():
             loss = loss + aux
         return loss
+    if model_name == "robustkt":
+        pred_masked = torch.masked_select(pred, m)
+        target = torch.masked_select(rshft, m)
+        _, c_reg_loss = model(q.long(), r.long())
+        return binary_cross_entropy(pred_masked, target) + c_reg_loss
     if model_name == "gkt-fm":
         seq_len = min(pred.shape[1], qshft.shape[1])
         pred = pred[:, :seq_len]

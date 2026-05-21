@@ -25,6 +25,7 @@ from models.saint import SAINT
 from models.ukt import UKT
 from models.simplekt import SimpleKT
 from models.gkt_fm import GKTFM
+from models.robustkt import Robustkt
 from models.utils import collate_fn
 from trainers.kt_trainer import train_model
 
@@ -91,7 +92,9 @@ def main(model_name, dataset_name):
     elif model_name == "saint":
         model = SAINT(dataset.num_q, **model_config).to(device)
     elif model_name == "ukt":
-        model = UKT(dataset.num_q, **model_config).to(device)
+        model = UKT(dataset.num_q, n_pid=0, **model_config).to(device)
+    elif model_name == "robustkt":
+        model = Robustkt(dataset.num_q, n_pid=0, **model_config).to(device)
     elif model_name == "simplekt":
         model = SimpleKT(dataset.num_q, **model_config).to(device)
     elif model_name == "gkt":
@@ -166,7 +169,7 @@ if __name__ == "__main__":
         type=str,
         default="dkt",
         help="The name of the model to train. \
-            The possible models are in [dkt, dkt-f, dkt+, dkvmn, sakt, saint, kqn, ukt, simplekt, gkt, gkt-fm]. \
+            The possible models are in [dkt, dkt-f, dkt+, dkvmn, sakt, saint, kqn, ukt, robustkt, simplekt, gkt, gkt-fm]. \
             The default model is dkt."
     )
     parser.add_argument(

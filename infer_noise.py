@@ -24,6 +24,7 @@ from models.saint import SAINT
 from models.sakt import SAKT
 from models.simplekt import SimpleKT
 from models.ukt import UKT
+from models.robustkt import Robustkt
 from models.utils import collate_fn
 from trainers.kt_trainer import _forward_for_batch, _move_batch_to_model_device
 
@@ -74,7 +75,9 @@ def build_model(model_name, dataset, model_config, device):
     if model_name == "saint":
         return SAINT(dataset.num_q, **model_config).to(device)
     if model_name == "ukt":
-        return UKT(dataset.num_q, **model_config).to(device)
+        return UKT(dataset.num_q, n_pid=0, **model_config).to(device)
+    if model_name == "robustkt":
+        return Robustkt(dataset.num_q, n_pid=0, **model_config).to(device)
     if model_name == "simplekt":
         return SimpleKT(dataset.num_q, **model_config).to(device)
     if model_name == "gkt":

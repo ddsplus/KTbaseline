@@ -1,6 +1,7 @@
 import csv
 import os
 import pickle
+import json
 
 import numpy as np
 
@@ -150,8 +151,23 @@ class XES3G5M(Dataset):
 
         os.makedirs(self.dataset_dir, exist_ok=True)
 
-        train_users = self._read_csv_users(self.raw_train_path)
-        test_users = self._read_csv_users(self.raw_test_path)
+        train_users_raw = self._read_csv_users(self.raw_train_path)
+        test_users_raw = self._read_csv_users(self.raw_test_path)
+
+        train_uids = set(train_users_raw.keys())
+        test_uids = set(test_users_raw.keys())
+        overlap_uids = train_uids.intersection(test_uids)
+
+        if overlap_uids:
+            train_users = {
+                uid: seq for uid, seq in train_users_raw.items()
+                if uid not in overlap_uids
+            }
+            test_users = dict(test_users_raw)
+        else:
+            train_users = dict(train_users_raw)
+            test_users = dict(test_users_raw)
+
         _, qid_map, _ = self._build_maps(train_users, {})
 
         q_list = np.array(sorted(qid_map.values()))
@@ -209,7 +225,14 @@ class XES3G5M(Dataset):
             pickle.dump(train_indices, f)
         with open(self.test_indices_path, "wb") as f:
             pickle.dump(test_indices, f)
+        split_meta = {
+            "split": "strict_user_disjoint",
+            "train_user_count": len(train_users),
+            "test_user_count": len(test_users),
+            "overlap_user_count": len(overlap_uids),
+            "overlap_users_assigned_to": "test",
+        }
         with open(self.official_split_meta_path, "w", encoding="utf-8") as f:
-            f.write('{"split":"official_xes3g5m_train_test"}')
+            json.dump(split_meta, f)
 
         return q_seqs, r_seqs, q_list, u_list, q2idx, u2idx

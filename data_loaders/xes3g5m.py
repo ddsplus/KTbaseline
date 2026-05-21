@@ -13,6 +13,7 @@ from models.utils import match_seq_len
 DATASET_DIR = "datasets/XES3G5M/"
 RAW_TRAIN_FILE = "train.csv"
 RAW_TEST_FILE = "test.csv"
+OFFICIAL_SPLIT_META_FILE = "official_split_meta.json"
 
 
 class XES3G5M(Dataset):
@@ -40,8 +41,20 @@ class XES3G5M(Dataset):
         self.dataset_dir = dataset_dir
         self.raw_train_path = os.path.join(self.dataset_dir, raw_train_file)
         self.raw_test_path = os.path.join(self.dataset_dir, raw_test_file)
+        self.train_indices_path = os.path.join(self.dataset_dir, "train_indices.pkl")
+        self.test_indices_path = os.path.join(self.dataset_dir, "test_indices.pkl")
+        self.official_split_meta_path = os.path.join(
+            self.dataset_dir, OFFICIAL_SPLIT_META_FILE
+        )
 
-        if os.path.exists(os.path.join(self.dataset_dir, "q_seqs.pkl")):
+        has_cached_sequences = os.path.exists(os.path.join(self.dataset_dir, "q_seqs.pkl"))
+        has_official_split_cache = (
+            os.path.exists(self.train_indices_path)
+            and os.path.exists(self.test_indices_path)
+            and os.path.exists(self.official_split_meta_path)
+        )
+
+        if has_cached_sequences and has_official_split_cache:
             with open(os.path.join(self.dataset_dir, "q_seqs.pkl"), "rb") as f:
                 self.q_seqs = pickle.load(f)
             with open(os.path.join(self.dataset_dir, "r_seqs.pkl"), "rb") as f:
@@ -139,44 +152,46 @@ class XES3G5M(Dataset):
 
         train_users = self._read_csv_users(self.raw_train_path)
         test_users = self._read_csv_users(self.raw_test_path)
-        _, qid_map, _ = self._build_maps(train_users, test_users)
+        _, qid_map, _ = self._build_maps(train_users, {})
 
-        all_users = dict(train_users)
-        for uid, val in test_users.items():
-            if uid in all_users:
-                q0, c0, r0 = all_users[uid]
-                q1, c1, r1 = val
-                all_users[uid] = (q0 + q1, c0 + c1, r0 + r1)
-            else:
-                all_users[uid] = val
-
-        u_list = np.array(
-            sorted(
-                all_users.keys(),
-                key=lambda x: int(x) if str(x).isdigit() else 0
-            )
-        )
         q_list = np.array(sorted(qid_map.values()))
-        u2idx = {u: idx for idx, u in enumerate(u_list)}
         q2idx = dict(qid_map)
 
         q_seqs = []
         r_seqs = []
-        for uid in u_list:
-            questions, concepts, responses = all_users[uid]
-            filtered_q = []
-            filtered_r = []
-            for q, c, r in zip(questions, concepts, responses):
-                if q <= 0 or c <= 0 or r < 0:
+        sequence_users = []
+        train_indices = []
+        test_indices = []
+
+        def _append_split_sequences(users, split_name):
+            for uid in sorted(users.keys(), key=lambda x: int(x) if str(x).isdigit() else 0):
+                questions, concepts, responses = users[uid]
+                filtered_q = []
+                filtered_r = []
+                for q, c, r in zip(questions, concepts, responses):
+                    if q <= 0 or c <= 0 or r < 0:
+                        continue
+                    if q not in qid_map:
+                        continue
+                    filtered_q.append(qid_map[q])
+                    filtered_r.append(int(r))
+                if len(filtered_q) == 0:
                     continue
-                if q not in qid_map:
-                    continue
-                filtered_q.append(qid_map[q])
-                filtered_r.append(int(r))
-            if len(filtered_q) == 0:
-                continue
-            q_seqs.append(np.array(filtered_q))
-            r_seqs.append(np.array(filtered_r))
+
+                seq_idx = len(q_seqs)
+                q_seqs.append(np.array(filtered_q))
+                r_seqs.append(np.array(filtered_r))
+                sequence_users.append("{}::{}".format(split_name, uid))
+                if split_name == "train":
+                    train_indices.append(seq_idx)
+                else:
+                    test_indices.append(seq_idx)
+
+        _append_split_sequences(train_users, "train")
+        _append_split_sequences(test_users, "test")
+
+        u_list = np.array(sequence_users)
+        u2idx = {u: idx for idx, u in enumerate(u_list)}
 
         with open(os.path.join(self.dataset_dir, "q_seqs.pkl"), "wb") as f:
             pickle.dump(q_seqs, f)
@@ -190,5 +205,11 @@ class XES3G5M(Dataset):
             pickle.dump(q2idx, f)
         with open(os.path.join(self.dataset_dir, "u2idx.pkl"), "wb") as f:
             pickle.dump(u2idx, f)
+        with open(self.train_indices_path, "wb") as f:
+            pickle.dump(train_indices, f)
+        with open(self.test_indices_path, "wb") as f:
+            pickle.dump(test_indices, f)
+        with open(self.official_split_meta_path, "w", encoding="utf-8") as f:
+            f.write('{"split":"official_xes3g5m_train_test"}')
 
         return q_seqs, r_seqs, q_list, u_list, q2idx, u2idx

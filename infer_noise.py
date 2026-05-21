@@ -130,6 +130,11 @@ def load_split_indices(dataset, train_ratio):
         with open(test_indices_path, "rb") as f:
             test_indices = pickle.load(f)
     else:
+        if dataset.__class__.__name__ == "XES3G5M":
+            raise FileNotFoundError(
+                "Official XES3G5M split indices not found. "
+                "Please remove cached XES3G5M pkl files and rerun preprocessing."
+            )
         train_size = int(len(dataset) * train_ratio)
         generator = torch.Generator(device="cpu")
         indices = torch.randperm(len(dataset), generator=generator, device="cpu").tolist()

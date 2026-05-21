@@ -118,22 +118,30 @@ def main(model_name, dataset_name):
     train_dataset = Subset(dataset, indices[:train_size])
     test_dataset = Subset(dataset, indices[train_size:])
 
-    if os.path.exists(os.path.join(dataset.dataset_dir, "train_indices.pkl")):
+    train_indices_path = os.path.join(dataset.dataset_dir, "train_indices.pkl")
+    test_indices_path = os.path.join(dataset.dataset_dir, "test_indices.pkl")
+
+    if os.path.exists(train_indices_path):
         with open(
-            os.path.join(dataset.dataset_dir, "train_indices.pkl"), "rb"
+            train_indices_path, "rb"
         ) as f:
             train_dataset.indices = pickle.load(f)
         with open(
-            os.path.join(dataset.dataset_dir, "test_indices.pkl"), "rb"
+            test_indices_path, "rb"
         ) as f:
             test_dataset.indices = pickle.load(f)
     else:
+        if dataset_name == "XES3G5M":
+            raise FileNotFoundError(
+                "Official XES3G5M split indices not found. "
+                "Please remove cached XES3G5M pkl files and rerun preprocessing."
+            )
         with open(
-            os.path.join(dataset.dataset_dir, "train_indices.pkl"), "wb"
+            train_indices_path, "wb"
         ) as f:
             pickle.dump(train_dataset.indices, f)
         with open(
-            os.path.join(dataset.dataset_dir, "test_indices.pkl"), "wb"
+            test_indices_path, "wb"
         ) as f:
             pickle.dump(test_dataset.indices, f)
 

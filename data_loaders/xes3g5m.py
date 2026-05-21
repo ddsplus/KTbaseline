@@ -54,8 +54,18 @@ class XES3G5M(Dataset):
             and os.path.exists(self.test_indices_path)
             and os.path.exists(self.official_split_meta_path)
         )
+        has_strict_user_split_cache = False
+        if has_official_split_cache:
+            try:
+                with open(self.official_split_meta_path, "r", encoding="utf-8") as f:
+                    split_meta = json.load(f)
+                has_strict_user_split_cache = (
+                    split_meta.get("split") == "strict_user_disjoint"
+                )
+            except (ValueError, OSError):
+                has_strict_user_split_cache = False
 
-        if has_cached_sequences and has_official_split_cache:
+        if has_cached_sequences and has_strict_user_split_cache:
             with open(os.path.join(self.dataset_dir, "q_seqs.pkl"), "rb") as f:
                 self.q_seqs = pickle.load(f)
             with open(os.path.join(self.dataset_dir, "r_seqs.pkl"), "rb") as f:

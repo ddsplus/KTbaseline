@@ -48,6 +48,10 @@ def _forward_for_batch(model_name, model, q, r, qshft, pid=None):
         return p
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
+        # Handle both 2D and 3D outputs from gkt model
+        if y.dim() == 2:
+            # If y is 2D (batch_size, num_q), reshape to (batch_size, 1, num_q)
+            y = y.unsqueeze(1)
         seq_len = min(y.shape[1], qshft.shape[1])
         y = y[:, :seq_len, :]
         qshft = qshft[:, :seq_len]

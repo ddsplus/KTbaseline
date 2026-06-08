@@ -48,14 +48,15 @@ def _forward_for_batch(model_name, model, q, r, qshft, pid=None):
         return p
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
-        # Handle both 2D and 3D outputs from gkt model
+        # y shape: (batch_size, seq_len, num_q) from the model's forward
+        # But predict() uses squeeze() which may affect dimensions
+        # Ensure y is 3D: (batch_size, seq_len, num_q)
         if y.dim() == 2:
-            # If y is 2D (batch_size, num_q), reshape to (batch_size, 1, num_q)
             y = y.unsqueeze(1)
         seq_len = min(y.shape[1], qshft.shape[1])
         y = y[:, :seq_len, :]
-        qshft = qshft[:, :seq_len]
-        y = (y * one_hot(qshft.long(), num_classes=y.shape[-1])).sum(-1)
+        qshft_trimmed = qshft[:, :seq_len]
+        y = (y * one_hot(qshft_trimmed.long(), num_classes=y.shape[-1])).sum(-1)
         return y
     if model_name == "gkt-fm":
         y, _, aux_losses = model(q.long(), r.long(), train=True)

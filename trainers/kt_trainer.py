@@ -48,18 +48,26 @@ def _forward_for_batch(model_name, model, q, r, qshft, pid=None):
         return p
     if model_name == "gkt":
         y, _ = model(q.long(), r.long())
-        # Debug: print shapes
-        print(f"DEBUG gkt - y.shape: {y.shape}, y.dim: {y.dim()}, qshft.shape: {qshft.shape}")
-        # y shape: (batch_size, seq_len, num_q) from the model's forward
-        # But predict() uses squeeze() which may affect dimensions
-        # Ensure y is 3D: (batch_size, seq_len, num_q)
-        if y.dim() == 2:
-            y = y.unsqueeze(1)
+        # y shape from model's predict: can be 2D or 3D due to squeeze()
+        # Expected: (batch_size, seq_len, num_q)
+        # When predict() squeezes, it might become (batch_size, num_q) or flatten
+        if y.dim() == 1:
+            # Single value, reshape to (1, 1, num_q)
+            y = y.unsqueeze(0).unsqueeze(0)
+        elif y.dim() == 2:
+            # Could be (batch_size, num_q) or (batch_size*seq_len, num_q)
+            # Check against qshft to infer correct interpretation
+            if y.shape[0] == qshft.shape[0]:
+                # It's (batch_size, num_q), expand to (batch_size, 1, num_q)
+                y = y.unsqueeze(1)
+            else:
+                # Likely flattened, try to reshape
+                # This is a fallback; ideally shouldn't happen
+                y = y.view(qshft.shape[0], qshft.shape[1], -1)
         seq_len = min(y.shape[1], qshft.shape[1])
         y = y[:, :seq_len, :]
-        qshft_trimmed = qshft[:, :seq_len]
-        y = (y * one_hot(qshft_trimmed.long(), num_classes=y.shape[-1])).sum(-1)
-        print(f"DEBUG gkt - final y.shape: {y.shape}")
+        qshft = qshft[:, :seq_len]
+        y = (y * one_hot(qshft.long(), num_classes=y.shape[-1])).sum(-1)
         return y
     if model_name == "gkt-fm":
         y, _, aux_losses = model(q.long(), r.long(), train=True)

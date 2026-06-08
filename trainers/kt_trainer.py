@@ -1,5 +1,6 @@
 import os
 import copy
+import time
 
 import numpy as np
 import torch
@@ -192,6 +193,8 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
     for i in range(1, num_epochs + 1):
         epoch_losses = []
 
+        # Training phase
+        train_start_time = time.time()
         for data in train_loader:
             q, r, qshft, rshft, m, pid, pidshft = _move_batch_to_model_device(model, data)
             model.train()
@@ -204,6 +207,10 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
             opt.step()
             epoch_losses.append(loss.detach().cpu().numpy())
 
+        train_time = time.time() - train_start_time
+
+        # Testing phase
+        test_start_time = time.time()
         with torch.no_grad():
             all_y_true = []
             all_y_score = []
@@ -221,17 +228,19 @@ def train_model(model_name, model, train_loader, test_loader, num_epochs, opt, c
             auc, acc = calc_binary_auc_acc(y_true=y_true_all, y_score=y_score_all)
             loss_mean = np.mean(epoch_losses)
 
-            print(
-                "Epoch: {},   Test AUC: {},   Test ACC: {},   Loss Mean: {}"
-                .format(i, auc, acc, loss_mean)
-            )
+        test_time = time.time() - test_start_time
 
-            if auc > best_auc:
-                best_auc = auc
-                best_state_dict = copy.deepcopy(model.state_dict())
+        print(
+            "Epoch: {},   Test AUC: {},   Test ACC: {},   Loss Mean: {},   Train Time: {:.2f}s,   Test Time: {:.2f}s"
+            .format(i, auc, acc, loss_mean, train_time, test_time)
+        )
 
-            aucs.append(auc)
-            loss_means.append(loss_mean)
+        if auc > best_auc:
+            best_auc = auc
+            best_state_dict = copy.deepcopy(model.state_dict())
+
+        aucs.append(auc)
+        loss_means.append(loss_mean)
 
     if best_state_dict is not None:
         torch.save(best_state_dict, os.path.join(ckpt_path, "best_model.pt"))

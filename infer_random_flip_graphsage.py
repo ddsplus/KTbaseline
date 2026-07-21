@@ -2,6 +2,14 @@
 """
 Random flip inference for GraphSAGE_KT.
 
+
+  python infer_random_flip_graphsage.py ^
+    --dataset ASSIST2009 ^
+    --model_path path\to\best_model.pt ^
+    --data_path datasets ^
+    --split test
+
+
 This script evaluates a trained GraphSAGE_KT checkpoint under answer-flip
 noise only: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 by default.
 """
